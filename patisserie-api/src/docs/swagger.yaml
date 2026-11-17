@@ -1,10 +1,13 @@
 openapi: 3.0.3
 info:
   title: Pâtisserie Maison API
-  version: 0.5.0
+  version: 0.6.0
   description: |
     REST API of Pâtisserie Maison, a traditional Tunisian pâtisserie.
     All amounts are integers in millimes (1 TND = 1000 millimes): 18500 means 18.500 DT.
+
+    Authentication: call /auth/login, then click **Authorize** and paste the `accessToken`.
+    The access token lasts 15 minutes; /auth/refresh uses the httpOnly `refreshToken` cookie to get a new one.
 servers:
   - url: /api/v1
 paths:
@@ -85,7 +88,162 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Create a customer account (and log in)
+      description: Unknown fields such as `role` are ignored, so nobody can register as admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterInput' }
+      responses:
+        '201':
+          description: Account created. Sets the `refreshToken` httpOnly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '409': { $ref: '#/components/responses/EmailTaken' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in (customer or admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: amira.bensalah@example.tn }
+                password: { type: string, example: Client2026 }
+      responses:
+        '200':
+          description: Logged in. Sets the `refreshToken` httpOnly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401':
+          description: Wrong email or password, or disabled account (INVALID_CREDENTIALS)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: New access token from the refresh cookie (the cookie is rotated)
+      security: [{ cookieAuth: [] }]
+      responses:
+        '200':
+          description: New access token and a new `refreshToken` cookie; the old cookie stops working
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401':
+          description: Missing, unknown, already used or expired refresh token (INVALID_REFRESH_TOKEN)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out (revokes the refresh token and clears the cookie)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Logged out }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /users/me:
+    get:
+      tags: [Users]
+      summary: My profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: The profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Users]
+      summary: Update my names, phone and delivery addresses
+      description: |
+        `addresses` replaces the whole list (max 5). If no address is marked `isDefault`, the first one becomes the default.
+        `phone: null` removes the phone. `email` and `role` cannot be changed here.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMeInput' }
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List users (admin only)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: role, schema: { type: string, enum: [customer, admin] } }
+        - { in: query, name: search, schema: { type: string, maxLength: 100 }, description: Part of the email, first name or last name }
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: One page of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/User' } }
+                  pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /admin/admins:
+    post:
+      tags: [Admin]
+      summary: Create another admin (admin only)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterInput' }
+      responses:
+        '201':
+          description: Admin created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/EmailTaken' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    cookieAuth: { type: apiKey, in: cookie, name: refreshToken }
   schemas:
     Health:
       type: object
@@ -135,6 +293,61 @@ components:
             limit: { type: integer, example: 12 }
             total: { type: integer, example: 18 }
             totalPages: { type: integer, example: 2 }
+    Address:
+      type: object
+      required: [street, city, governorate, postalCode]
+      properties:
+        id: { type: string, readOnly: true }
+        label: { type: string, example: Maison }
+        street: { type: string, example: 14 rue Ibn Khaldoun }
+        city: { type: string, example: La Marsa }
+        governorate: { type: string, example: Tunis, description: One of the 24 governorates }
+        postalCode: { type: string, example: '2070' }
+        country: { type: string, example: TN, readOnly: true }
+        isDefault: { type: boolean }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, example: amira.bensalah@example.tn }
+        firstName: { type: string, example: Amira }
+        lastName: { type: string, example: Ben Salah }
+        phone: { type: string, example: '+21622123456' }
+        role: { type: string, enum: [customer, admin] }
+        isActive: { type: boolean }
+        addresses: { type: array, items: { $ref: '#/components/schemas/Address' } }
+        createdAt: { type: string, format: date-time }
+    RegisterInput:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email: { type: string, example: leila.haddad@example.tn }
+        password: { type: string, example: Makroudh2026, description: 8 to 72 characters with at least one letter and one digit }
+        firstName: { type: string, example: Leila }
+        lastName: { type: string, example: Haddad }
+        phone: { type: string, example: '+21698765432', description: +216 followed by 8 digits }
+    UpdateMeInput:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string, nullable: true, example: '+21622000111' }
+        addresses: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/Address' } }
+    Session:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            user: { $ref: '#/components/schemas/User' }
+            accessToken: { type: string, description: 'JWT to send as "Authorization: Bearer <token>"' }
+    Pagination:
+      type: object
+      properties:
+        page: { type: integer, example: 1 }
+        limit: { type: integer, example: 20 }
+        total: { type: integer, example: 3 }
+        totalPages: { type: integer, example: 1 }
     Error:
       type: object
       description: Standard shape of every error response
@@ -158,6 +371,21 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     ValidationError:
       description: Invalid input (VALIDATION_ERROR), with one entry per failing field in details
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: No token (AUTH_REQUIRED), expired token (TOKEN_EXPIRED) or invalid token (INVALID_TOKEN)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Logged in but not allowed, e.g. a customer on an admin route (FORBIDDEN)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    EmailTaken:
+      description: An account with this email already exists (EMAIL_TAKEN)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

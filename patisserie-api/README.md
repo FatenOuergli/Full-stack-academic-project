@@ -38,7 +38,7 @@ API documentation (Swagger UI): <http://localhost:3000/api/docs>.
 
 1. In Postman: **Import** → select both files in [`docs/postman/`](docs/postman):
    - `patisserie.postman_collection.json` (the requests, grouped by phase, with test scripts)
-   - `patisserie.local.postman_environment.json` (`baseUrl = http://localhost:3000/api/v1`)
+   - `patisserie.local.postman_environment.json` (`baseUrl`, and `adminEmail` / `adminPassword` matching your `.env`)
 2. Select the environment **Pâtisserie Maison – local** (top right).
 3. Send the requests one by one, or right-click the collection → **Run collection** to run them all and see the test results.
 
@@ -52,6 +52,13 @@ Base URL `http://localhost:3000/api/v1`. Full details and a "Try it out" button 
 | GET | `/categories` | public | Visible categories with their number of visible products |
 | GET | `/products` | public | Shop window: `?category=&occasion=&unit=&search=&minPrice=&maxPrice=&inStock=&page=&limit=&sort=` |
 | GET | `/products/:slug` | public | Product detail |
+| POST | `/auth/register` | public | Create a customer account (and log in) |
+| POST | `/auth/login` | public | Log in: returns an access token, sets the `refreshToken` cookie |
+| POST | `/auth/refresh` | refresh cookie | New access token (the cookie is rotated) |
+| POST | `/auth/logout` | customer | Revoke the refresh token |
+| GET, PATCH | `/users/me` | customer | Read or update my profile and delivery addresses |
+| GET | `/admin/users` | admin | List users: `?role=&search=&page=&limit=` |
+| POST | `/admin/admins` | admin | Create another admin |
 
 - Only active products of active categories are shown.
 - Prices in filters are millimes (`minPrice=20000` = 20.000 DT).
@@ -59,6 +66,13 @@ Base URL `http://localhost:3000/api/v1`. Full details and a "Try it out" button 
 - `limit` is at most 50.
 
 Example: `GET /products?occasion=aid&sort=price_asc` lists the Aïd specialities, cheapest first.
+
+### How login works
+
+1. `POST /auth/login` returns `accessToken` (a JWT valid 15 minutes) and sets an httpOnly `refreshToken` cookie (7 days).
+2. Protected routes need the header `Authorization: Bearer <accessToken>`. In Postman the login request saves it for you; in Swagger use **Authorize**.
+3. When the access token expires (`401 TOKEN_EXPIRED`), `POST /auth/refresh` returns a new one and replaces the cookie.
+4. `401` means "who are you?" (no or bad token); `403` means "you are logged in but not allowed" (a customer on `/admin/...`).
 
 ## Demo data (`npm run seed`)
 
@@ -87,6 +101,11 @@ Prices are multiples of 100 millimes. The server always recomputes totals; clien
 | `CLIENT_ORIGIN` | `http://localhost:4200` | The only origin allowed by CORS (Angular dev server) |
 | `SEED_ADMIN_EMAIL` | `admin@patisserie.tn` | First admin, created by the seed script |
 | `SEED_ADMIN_PASSWORD` | none | Required by `npm run seed` |
+| `JWT_ACCESS_SECRET` | none (required) | Signs access tokens; at least 32 characters |
+| `JWT_ACCESS_TTL` | `15m` | Access token lifetime |
+| `REFRESH_TOKEN_TTL_DAYS` | `7` | Refresh cookie lifetime in days |
+
+> Updating from an older version? Copy the new `JWT_*` and `REFRESH_*` lines from `.env.example` into your `.env`, otherwise the server will not start.
 
 Variables are validated at boot (`src/config/env.js`); the server refuses to start with an invalid value.
 
@@ -101,9 +120,9 @@ src/
 ├── routes/           # one express.Router() per resource, mounted under /api/v1
 ├── controllers/      # read the request, send the response
 ├── services/         # business rules
-├── middlewares/      # notFound, errorHandler, validate (more from phase 4)
+├── middlewares/      # notFound, errorHandler, validate, auth (authenticate + authorize)
 ├── validators/       # Zod schemas for params, query and body
-├── utils/            # AppError, asyncHandler, money, slugify, orderNumber, escapeRegex
+├── utils/            # AppError, asyncHandler, money, slugify, orderNumber, escapeRegex, tokens
 └── docs/swagger.yaml
 scripts/seed.js       # + seedData.js
 tests/                # Jest + Supertest

@@ -1,10 +1,9 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { ROLES, TUNISIAN_PHONE_REGEX } from '../config/constants.js';
+import { PASSWORD_MESSAGE, PASSWORD_REGEX, ROLES, TUNISIAN_PHONE_REGEX } from '../config/constants.js';
 import { addressSchema } from './address.schema.js';
 
 const BCRYPT_ROUNDS = 12;
-const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
 
 const userSchema = new mongoose.Schema(
   {
@@ -26,7 +25,9 @@ const userSchema = new mongoose.Schema(
     },
     role: { type: String, enum: ROLES, default: 'customer' },
     addresses: { type: [addressSchema], default: [] },
-    refreshTokenHash: { type: String, select: false },
+    // Only a SHA-256 hash of the refresh token is stored, so a database leak gives no usable token.
+    refreshTokenHash: { type: String, select: false, index: { sparse: true } },
+    refreshTokenExpiresAt: { type: Date, select: false },
     isActive: { type: Boolean, default: true },
   },
   {
@@ -35,6 +36,7 @@ const userSchema = new mongoose.Schema(
       transform(_doc, ret) {
         delete ret.passwordHash;
         delete ret.refreshTokenHash;
+        delete ret.refreshTokenExpiresAt;
         delete ret.__v;
         return ret;
       },
@@ -49,8 +51,8 @@ userSchema.virtual('password').set(function setPassword(plain) {
 });
 
 userSchema.pre('validate', function validatePassword() {
-  if (this._password !== undefined && !PASSWORD_RULE.test(this._password)) {
-    this.invalidate('password', 'password must be 8 to 72 characters with at least one letter and one digit');
+  if (this._password !== undefined && !PASSWORD_REGEX.test(this._password)) {
+    this.invalidate('password', PASSWORD_MESSAGE);
   }
 });
 
