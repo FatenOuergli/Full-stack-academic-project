@@ -46,3 +46,26 @@
 - `search` is a case-insensitive "contains" match on name and description, with the user's text escaped. It finds partial words (`makrou` finds Makroudh), which a MongoDB text index would not. With 20–100 products, speed is not a concern.
 - An unknown or hidden `category` in the filter returns 404 rather than an empty list, so a broken link is visible.
 - Sorting by name uses the French collation, so accented names sort naturally (Boîte comes before Debla).
+
+## Phase 4 – Auth and users
+
+**Done when:** auth tests pass and admin routes return 403 for customers. ✅
+
+- `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`; `GET` and `PATCH /users/me`; `GET /admin/users`; `POST /admin/admins`.
+- Access token: JWT (HS256) with `sub` = user id and `role`, valid `JWT_ACCESS_TTL` (15 min). The Angular app will keep it in memory.
+- Refresh token: random 48 bytes in an httpOnly, `SameSite=Strict` cookie limited to `/api/v1/auth`, valid 7 days. Only its SHA-256 hash is stored on the user. Each refresh swaps it for a new one in one atomic update, so a used or stolen token stops working.
+- `authenticate` (401) and `authorize('admin')` (403) middlewares in `src/middlewares/auth.js`. `/admin` applies both once for the whole router, so no admin route can forget them.
+- `authenticate` reloads the user on each request, so disabling an account or changing a role takes effect immediately.
+- Registration always creates a `customer`; unknown fields such as `role` are stripped. Only an admin creates another admin (business rule 10). The first admin still comes from `npm run seed`.
+- `PATCH /users/me` edits names, phone and up to 5 Tunisian addresses, with exactly one default. Email, role and password can't be changed there.
+- New settings: `JWT_ACCESS_SECRET` (required, ≥ 32 characters), `JWT_ACCESS_TTL`, `REFRESH_TOKEN_TTL_DAYS`.
+- Swagger has the **Authorize** button (bearer token). The Postman folder **Auth & users (phase 4)** has 12 requests; the login requests save `{{accessToken}}` and `{{adminToken}}`.
+- 28 new tests (68 in total).
+
+**Decisions to note**
+
+- Wrong password, unknown email and disabled account all return the same `401 INVALID_CREDENTIALS`. An unknown email still runs a bcrypt comparison, so response time doesn't reveal which emails exist.
+- One session per user: logging in again replaces the previous refresh token. This is simpler than storing a list of devices and is enough for the course.
+- The `TOKEN_EXPIRED` code (vs `INVALID_TOKEN`) lets the Angular interceptor know when to call `/auth/refresh`.
+- Rate limiting on `/auth/*` comes with the other hardening in phase 8.
+- Merging the guest cart at login comes in phase 6, when carts exist.
