@@ -115,7 +115,367 @@
           }
         }
       ]
+    },
+    {
+      "name": "Vitrine (phase 5)",
+      "item": [
+        {
+          "name": "List categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('4 categories with a product count', () => {",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data).to.have.length(4);",
+                  "  pm.expect(data[0]).to.include.keys('name', 'slug', 'productCount');",
+                  "  pm.collectionVariables.set('categorySlug', data[0].slug);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            },
+            "description": "Visible categories with their number of visible products. Saves the first slug in {{categorySlug}}."
+          }
+        },
+        {
+          "name": "List products (page 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('page of products with pagination', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.pagination).to.include.keys('page', 'limit', 'total', 'totalPages');",
+                  "  pm.expect(body.data.length).to.be.at.most(12);",
+                  "  pm.collectionVariables.set('productSlug', body.data[0].slug);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=12",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Default sort is newest. Saves the first slug in {{productSlug}}."
+          }
+        },
+        {
+          "name": "Filter by category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('only that category', () => {",
+                  "  const slug = pm.collectionVariables.get('categorySlug');",
+                  "  pm.response.json().data.forEach((p) => pm.expect(p.category.slug).to.eql(slug));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?category={{categorySlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "{{categorySlug}}"
+                }
+              ]
+            },
+            "description": "Run \"List categories\" first."
+          }
+        },
+        {
+          "name": "Filter by occasion (Aïd)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('every product is for the Aïd', () => {",
+                  "  pm.response.json().data.forEach((p) => pm.expect(p.occasions).to.include('aid'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?occasion=aid&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "occasion",
+                  "value": "aid"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Occasions: ramadan, aid, mouled, wedding. Hidden seasonal products (Zlabia, Mkharek) never appear."
+          }
+        },
+        {
+          "name": "Search \"baklawa\"",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('results mention baklawa', () => {",
+                  "  pm.response.json().data.forEach((p) => pm.expect(`${p.name} ${p.description}`.toLowerCase()).to.include('baklawa'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?search=baklawa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "baklawa"
+                }
+              ]
+            },
+            "description": "Case-insensitive search in name and description."
+          }
+        },
+        {
+          "name": "Price 20–50 DT, cheapest first",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('prices in range and ascending', () => {",
+                  "  const prices = pm.response.json().data.map((p) => p.priceMillimes);",
+                  "  prices.forEach((p) => pm.expect(p).to.be.within(20000, 50000));",
+                  "  pm.expect(prices).to.eql([...prices].sort((a, b) => a - b));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?minPrice=20000&maxPrice=50000&sort=price_asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "minPrice",
+                  "value": "20000"
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "50000"
+                },
+                {
+                  "key": "sort",
+                  "value": "price_asc"
+                }
+              ]
+            },
+            "description": "Prices are in millimes: 20000 = 20.000 DT. Sorts: newest, price_asc, price_desc, name."
+          }
+        },
+        {
+          "name": "Product detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK with the product', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const { data } = pm.response.json();",
+                  "  pm.expect(data.slug).to.eql(pm.collectionVariables.get('productSlug'));",
+                  "  pm.expect(data).to.include.keys('priceMillimes', 'unit', 'category', 'allergens');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productSlug}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "{{productSlug}}"
+              ]
+            },
+            "description": "Run \"List products (page 1)\" first."
+          }
+        },
+        {
+          "name": "Hidden product returns 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 PRODUCT_NOT_FOUND', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().code).to.eql('PRODUCT_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products/zlabia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products",
+                "zlabia"
+              ]
+            },
+            "description": "Zlabia is seeded with isActive: false (out of Ramadan season)."
+          }
+        },
+        {
+          "name": "Invalid filter returns 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 VALIDATION_ERROR with field details', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.code).to.eql('VALIDATION_ERROR');",
+                  "  pm.expect(body.details.map((d) => d.field)).to.include.members(['occasion', 'limit']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/products?occasion=christmas&limit=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "occasion",
+                  "value": "christmas"
+                },
+                {
+                  "key": "limit",
+                  "value": "500"
+                }
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
     }
   ],
-  "variable": []
+  "variable": [
+    {
+      "key": "categorySlug",
+      "value": ""
+    },
+    {
+      "key": "productSlug",
+      "value": ""
+    }
+  ]
 }

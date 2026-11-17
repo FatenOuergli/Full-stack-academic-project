@@ -42,6 +42,24 @@ API documentation (Swagger UI): <http://localhost:3000/api/docs>.
 2. Select the environment **Pâtisserie Maison – local** (top right).
 3. Send the requests one by one, or right-click the collection → **Run collection** to run them all and see the test results.
 
+## Endpoints so far
+
+Base URL `http://localhost:3000/api/v1`. Full details and a "Try it out" button in Swagger at `/api/docs`.
+
+| Method | Path | Access | Purpose |
+| --- | --- | --- | --- |
+| GET | `/health` | public | API and database status |
+| GET | `/categories` | public | Visible categories with their number of visible products |
+| GET | `/products` | public | Shop window: `?category=&occasion=&unit=&search=&minPrice=&maxPrice=&inStock=&page=&limit=&sort=` |
+| GET | `/products/:slug` | public | Product detail |
+
+- Only active products of active categories are shown.
+- Prices in filters are millimes (`minPrice=20000` = 20.000 DT).
+- `sort` is `newest` (default), `price_asc`, `price_desc` or `name` (French alphabetical order).
+- `limit` is at most 50.
+
+Example: `GET /products?occasion=aid&sort=price_asc` lists the Aïd specialities, cheapest first.
+
 ## Demo data (`npm run seed`)
 
 | Role | Email | Password |
@@ -83,8 +101,9 @@ src/
 ├── routes/           # one express.Router() per resource, mounted under /api/v1
 ├── controllers/      # read the request, send the response
 ├── services/         # business rules
-├── middlewares/      # notFound, errorHandler (more from phase 4)
-├── utils/            # AppError, asyncHandler, money, slugify, orderNumber
+├── middlewares/      # notFound, errorHandler, validate (more from phase 4)
+├── validators/       # Zod schemas for params, query and body
+├── utils/            # AppError, asyncHandler, money, slugify, orderNumber, escapeRegex
 └── docs/swagger.yaml
 scripts/seed.js       # + seedData.js
 tests/                # Jest + Supertest

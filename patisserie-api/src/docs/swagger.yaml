@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Pâtisserie Maison API
-  version: 0.3.0
+  version: 0.5.0
   description: |
     REST API of Pâtisserie Maison, a traditional Tunisian pâtisserie.
     All amounts are integers in millimes (1 TND = 1000 millimes): 18500 means 18.500 DT.
@@ -23,6 +23,68 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Health' }
+  /categories:
+    get:
+      tags: [Vitrine]
+      summary: Visible categories, alphabetical, with their number of visible products
+      responses:
+        '200':
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Category' } }
+  /products:
+    get:
+      tags: [Vitrine]
+      summary: Shop window – visible products with filters, search, sort and pagination
+      description: Only active products of active categories are returned. Prices are in millimes.
+      parameters:
+        - { in: query, name: category, schema: { type: string, example: gateaux-secs }, description: Category slug }
+        - { in: query, name: occasion, schema: { type: string, enum: [ramadan, aid, mouled, wedding] } }
+        - { in: query, name: unit, schema: { type: string, enum: [piece, box, kg] } }
+        - { in: query, name: search, schema: { type: string, maxLength: 100, example: baklawa }, description: Case-insensitive text in name or description }
+        - { in: query, name: minPrice, schema: { type: integer, minimum: 0, example: 20000 }, description: Minimum price in millimes (20000 = 20.000 DT) }
+        - { in: query, name: maxPrice, schema: { type: integer, minimum: 0, example: 50000 }, description: Maximum price in millimes }
+        - { in: query, name: inStock, schema: { type: string, enum: ['true', 'false'] } }
+        - { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 50, default: 12 } }
+        - { in: query, name: sort, schema: { type: string, enum: [newest, price_asc, price_desc, name], default: newest } }
+      responses:
+        '200':
+          description: One page of products
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '404':
+          description: Unknown or hidden category (CATEGORY_NOT_FOUND)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /products/{slug}:
+    get:
+      tags: [Vitrine]
+      summary: Product detail
+      parameters:
+        - { in: path, name: slug, required: true, schema: { type: string, example: baklawa-aux-pistaches } }
+      responses:
+        '200':
+          description: The product
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Product' }
+        '404':
+          description: Unknown or hidden product (PRODUCT_NOT_FOUND)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 components:
   schemas:
     Health:
@@ -32,6 +94,47 @@ components:
         database: { type: string, enum: [connected, disconnected], example: connected }
         uptimeSeconds: { type: integer, example: 42 }
         timestamp: { type: string, format: date-time }
+    Category:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, example: Gâteaux secs }
+        slug: { type: string, example: gateaux-secs }
+        description: { type: string }
+        productCount: { type: integer, example: 6 }
+    Product:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, example: Baklawa aux pistaches }
+        slug: { type: string, example: baklawa-aux-pistaches }
+        description: { type: string }
+        priceMillimes: { type: integer, example: 89000, description: Price per unit in millimes (89000 = 89.000 DT) }
+        unit: { type: string, enum: [piece, box, kg], example: kg }
+        weightGrams: { type: integer, example: 500, description: Only for boxes }
+        stock: { type: integer, example: 20 }
+        inStock: { type: boolean, example: true }
+        images: { type: array, items: { type: string } }
+        category:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string, example: Baklawa & fruits secs }
+            slug: { type: string, example: baklawa-et-fruits-secs }
+        occasions: { type: array, items: { type: string, enum: [ramadan, aid, mouled, wedding] }, example: [aid, wedding] }
+        ingredients: { type: array, items: { type: string } }
+        allergens: { type: array, items: { type: string } }
+    ProductPage:
+      type: object
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        pagination:
+          type: object
+          properties:
+            page: { type: integer, example: 1 }
+            limit: { type: integer, example: 12 }
+            total: { type: integer, example: 18 }
+            totalPages: { type: integer, example: 2 }
     Error:
       type: object
       description: Standard shape of every error response
@@ -50,6 +153,11 @@ components:
   responses:
     NotFound:
       description: Unknown route or resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Invalid input (VALIDATION_ERROR), with one entry per failing field in details
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
