@@ -10,13 +10,16 @@ const MODELS = [User, Category, Product, Cart, Order, Payment, Counter];
 // Wipes the collections and inserts the demo data. Safe to run again at any time.
 export async function seedDatabase({ adminEmail, adminPassword }) {
   if (!adminPassword) throw new Error('SEED_ADMIN_PASSWORD is required (see .env.example)');
+  // Validate before wiping so a bad password never leaves an empty database.
+  const admin = new User({ email: adminEmail, password: adminPassword, firstName: 'Admin', lastName: 'Pâtisserie', role: 'admin' });
+  await admin.validate();
 
   for (const Model of MODELS) {
     await Model.deleteMany({});
     await Model.syncIndexes();
   }
 
-  await User.create({ email: adminEmail, password: adminPassword, firstName: 'Admin', lastName: 'Pâtisserie', role: 'admin' });
+  await admin.save();
   const customers = [];
   for (const c of data.customers) customers.push(await User.create(c));
 

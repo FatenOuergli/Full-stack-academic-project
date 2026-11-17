@@ -33,4 +33,9 @@ describe('seedDatabase', () => {
   it('refuses to run without an admin password', async () => {
     await expect(seedDatabase({ adminEmail: 'a@b.tn' })).rejects.toThrow('SEED_ADMIN_PASSWORD');
   });
+
+  it('rejects a weak admin password without touching the existing data', async () => {
+    await expect(seedDatabase({ ...options, adminPassword: 'abcdefgh' })).rejects.toThrow();
+    expect(await Product.countDocuments()).toBe(expected.products);
+  });
 });
