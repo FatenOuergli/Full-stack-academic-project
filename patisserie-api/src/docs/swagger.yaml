@@ -1,0 +1,55 @@
+openapi: 3.0.3
+info:
+  title: Pâtisserie Maison API
+  version: 0.3.0
+  description: |
+    REST API of Pâtisserie Maison, a traditional Tunisian pâtisserie.
+    All amounts are integers in millimes (1 TND = 1000 millimes): 18500 means 18.500 DT.
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      tags: [System]
+      summary: Liveness check (API and database)
+      responses:
+        '200':
+          description: API is up and MongoDB is connected
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: API is up but MongoDB is not reachable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+components:
+  schemas:
+    Health:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded], example: ok }
+        database: { type: string, enum: [connected, disconnected], example: connected }
+        uptimeSeconds: { type: integer, example: 42 }
+        timestamp: { type: string, format: date-time }
+    Error:
+      type: object
+      description: Standard shape of every error response
+      required: [status, code, message]
+      properties:
+        status: { type: integer, example: 422 }
+        code: { type: string, example: VALIDATION_ERROR }
+        message: { type: string, example: Invalid input }
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string, example: priceMillimes }
+              message: { type: string, example: priceMillimes must be a non-negative integer, multiple of 100 }
+  responses:
+    NotFound:
+      description: Unknown route or resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
