@@ -27,6 +27,13 @@ function toAppError(err) {
   if (err?.type === 'entity.too.large') {
     return new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body is too large');
   }
+  if (err?.type === 'charset.unsupported' || err?.type === 'encoding.unsupported') {
+    return new AppError(415, 'UNSUPPORTED_MEDIA_TYPE', err.message);
+  }
+  // Any other client error raised by the body parser (http-errors with expose=true).
+  if (err?.expose && err.status >= 400 && err.status < 500) {
+    return new AppError(err.status, 'BAD_REQUEST', err.message);
+  }
   return null;
 }
 

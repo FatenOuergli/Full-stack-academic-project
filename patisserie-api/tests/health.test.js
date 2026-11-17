@@ -33,6 +33,27 @@ describe('standard error shape', () => {
   });
 });
 
+describe('unsupported request bodies', () => {
+  it('returns 415 UNSUPPORTED_MEDIA_TYPE for an unsupported charset', async () => {
+    const res = await request(app)
+      .post('/api/v1/health')
+      .set('Content-Type', 'application/json; charset=iso-8859-1')
+      .send('{}');
+    expect(res.status).toBe(415);
+    expect(res.body).toMatchObject({ status: 415, code: 'UNSUPPORTED_MEDIA_TYPE' });
+  });
+
+  it('returns 415 UNSUPPORTED_MEDIA_TYPE for an unsupported content encoding', async () => {
+    const res = await request(app)
+      .post('/api/v1/health')
+      .set('Content-Type', 'application/json')
+      .set('Content-Encoding', 'br-unknown')
+      .send('{}');
+    expect(res.status).toBe(415);
+    expect(res.body.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+  });
+});
+
 describe('CORS', () => {
   it('allows only the Angular origin, with credentials', async () => {
     const res = await request(app).get('/api/v1/health').set('Origin', 'http://localhost:4200');
