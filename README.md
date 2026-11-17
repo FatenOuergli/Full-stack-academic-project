@@ -8,4 +8,4 @@ Academic full-stack project: an online shop for a traditional Tunisian pâtisser
 | `patisserie-api/` | Express + MongoDB REST API | Phases 3 to 8 |
 | `patisserie-web/` | Angular client | Phases 9 to 12 |
 
-Progress is tracked phase by phase in `docs/PROGRESS.md`.
+Progress is tracked phase by phase in [`docs/PROGRESS.md`](docs/PROGRESS.md). To run the API, see [`patisserie-api/README.md`](patisserie-api/README.md).
