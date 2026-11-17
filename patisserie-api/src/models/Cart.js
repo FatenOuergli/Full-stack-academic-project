@@ -24,12 +24,13 @@ const cartSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-cartSchema.index({ user: 1 }, { unique: true, sparse: true });
-cartSchema.index({ guestId: 1 }, { unique: true, sparse: true });
+// Partial filters on the type (not sparse/$exists) so a stored null never counts as an owner.
+cartSchema.index({ user: 1 }, { unique: true, partialFilterExpression: { user: { $type: 'objectId' } } });
+cartSchema.index({ guestId: 1 }, { unique: true, partialFilterExpression: { guestId: { $type: 'string' } } });
 // Guest carts expire after 30 days without changes; customer carts are kept.
 cartSchema.index(
   { updatedAt: 1 },
-  { expireAfterSeconds: GUEST_CART_TTL_SECONDS, partialFilterExpression: { guestId: { $exists: true } } },
+  { expireAfterSeconds: GUEST_CART_TTL_SECONDS, partialFilterExpression: { guestId: { $type: 'string' } } },
 );
 
 cartSchema.pre('validate', function checkOwner() {

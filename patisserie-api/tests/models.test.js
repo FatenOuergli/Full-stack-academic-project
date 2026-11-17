@@ -88,7 +88,16 @@ describe('Cart', () => {
   it('has a 30-day TTL index limited to guest carts', async () => {
     const indexes = await Cart.collection.indexes();
     const ttl = indexes.find((i) => i.expireAfterSeconds !== undefined);
-    expect(ttl).toMatchObject({ key: { updatedAt: 1 }, expireAfterSeconds: 2592000, partialFilterExpression: { guestId: { $exists: true } } });
+    expect(ttl).toMatchObject({ key: { updatedAt: 1 }, expireAfterSeconds: 2592000, partialFilterExpression: { guestId: { $type: 'string' } } });
+  });
+
+  it('keeps customer carts with guestId: null out of the guest TTL and unique indexes', async () => {
+    await Cart.syncIndexes();
+    await Cart.create({ user: new mongoose.Types.ObjectId(), guestId: null });
+    await expect(Cart.create({ user: new mongoose.Types.ObjectId(), guestId: null })).resolves.toBeDefined();
+    const ttl = (await Cart.collection.indexes()).find((i) => i.expireAfterSeconds !== undefined);
+    const inTtl = await Cart.countDocuments({ guestId: null, ...ttl.partialFilterExpression });
+    expect(inTtl).toBe(0);
   });
 });
 
