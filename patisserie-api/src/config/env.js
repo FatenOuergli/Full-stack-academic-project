@@ -12,9 +12,24 @@ const schema = z.object({
   CLIENT_ORIGIN: z.url().default('http://localhost:4200'),
   SEED_ADMIN_EMAIL: z.email().default('admin@patisserie.tn'),
   SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
+  JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters (see .env.example)'),
+  JWT_ACCESS_TTL: z.string().regex(/^\d+[smhd]$/, 'must look like 15m, 1h or 30s').default('15m'),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(7),
 });
 
-const parsed = schema.safeParse(process.env);
+// Tests run without a .env file, so they get a throw-away secret. Every other
+// environment must define its own in .env.
+const input = { ...process.env };
+if (input.NODE_ENV === 'test' && !input.JWT_ACCESS_SECRET) {
+  input.JWT_ACCESS_SECRET = 'test-only-secret-that-is-long-enough-1234';
+}
+
+const parsed = schema
+  .refine((e) => e.NODE_ENV !== 'production' || !e.JWT_ACCESS_SECRET.startsWith('change-me'), {
+    path: ['JWT_ACCESS_SECRET'],
+    message: 'replace the example value before running in production',
+  })
+  .safeParse(input);
 
 if (!parsed.success) {
   console.error('Invalid environment configuration:');

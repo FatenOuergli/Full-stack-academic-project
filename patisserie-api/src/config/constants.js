@@ -27,4 +27,8 @@ export const GOVERNORATES = [
 export const TUNISIAN_PHONE_REGEX = /^\+216\d{8}$/;
 export const POSTAL_CODE_REGEX = /^\d{4}$/;
 
+// 8 to 72 characters (bcrypt ignores bytes after 72), at least one letter and one digit.
+export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
+export const PASSWORD_MESSAGE = 'password must be 8 to 72 characters with at least one letter and one digit';
+
 export const GUEST_CART_TTL_SECONDS = 30 * 24 * 60 * 60;
